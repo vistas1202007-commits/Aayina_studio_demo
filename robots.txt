@@ -1,0 +1,6 @@
+User-agent: *
+Allow: /
+Disallow: /api/
+Disallow: /admin/
+Disallow: /app/
+Sitemap: https://strong-cucurucho-858239.netlify.app/sitemap.xml

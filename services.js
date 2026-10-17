@@ -24,15 +24,14 @@
 
   function readStore(key, fallback) {
     try {
-      const raw = localStorage.getItem(key);
-      return raw ? JSON.parse(raw) : fallback;
+      return AainaCore.readStore(key, fallback);
     } catch (error) {
       return fallback;
     }
   }
 
   function writeStore(key, value) {
-    try { localStorage.setItem(key, JSON.stringify(value)); } catch (error) { /* private mode etc. */ }
+    AainaCore.writeStore(key, value);
   }
 
   const findService = id => serviceList.find(item => item.id === id);
@@ -40,7 +39,7 @@
 
   let wishlist = readStore(keys.wishlist, []).filter(findService);
   let booking = readStore(keys.booking, { services: [], combo: null });
-  booking.services = (booking.services || []).filter(findService);
+  booking.services = [...new Set((booking.services || []).filter(findService))];
 
   let activeCategory = 'all';
   let searchText = '';
@@ -72,11 +71,7 @@
     const subtotal = picked.reduce((sum, item) => sum + priceOf(item), 0);
     const minutes = picked.reduce((sum, item) => sum + item.mins, 0);
     const combo = comboIsActive();
-    let discount = 0;
-    if (combo) {
-      const base = combo.ids.reduce((sum, id) => sum + findService(id).price, 0);
-      discount = Math.round(base * combo.percent / 100);
-    }
+    const discount = picked.length ? AainaCore.bill(booking.services, combo?.id, serviceList, comboList).discount : 0;
     return { picked, subtotal, minutes, combo, discount, total: subtotal - discount };
   }
 
@@ -91,6 +86,7 @@
     const query = searchText.trim().toLowerCase();
 
     const list = serviceList.filter(item => {
+      if (item.available === false) return false;
       if (activeCategory === 'saved' && !wishlist.includes(item.id)) return false;
       if (activeCategory !== 'all' && activeCategory !== 'saved' && item.cat !== activeCategory) return false;
       if (!query) return true;
@@ -321,7 +317,7 @@
   /* ---------- combos ---------- */
 
   function renderCombos() {
-    comboGrid.innerHTML = comboList.map(combo => {
+    comboGrid.innerHTML = comboList.filter(combo => combo.ids.every(id => findService(id)?.available !== false)).map(combo => {
       const base = combo.ids.reduce((sum, id) => sum + findService(id).price, 0);
       const now = base - Math.round(base * combo.percent / 100);
       return `
@@ -422,6 +418,8 @@
   window.addEventListener('hashchange', () => {
     if (applyHash()) document.querySelector('#results').scrollIntoView({ behavior: 'smooth' });
   });
+
+  AainaAPI.ready.then(() => { booking.services = booking.services.filter(id => findService(id)?.available !== false); renderServices(); renderCombos(); updateTray(); });
 
   /* ---------- start ---------- */
 

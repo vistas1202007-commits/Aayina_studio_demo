@@ -1,6 +1,4 @@
-/* Aaina Beauty Studio - booking page
-   Needs script.js and data.js loaded before it.
-   Bookings are kept in localStorage (this browser only). Nothing is sent anywhere. */
+/* Booking page. Shared rules live in core.js; live appointments are owned by the API session. */
 
 (function () {
   const stepper = document.querySelector('#stepper');
@@ -24,18 +22,10 @@
 
   /* ---------- storage + small helpers ---------- */
 
-  function readStore(key, fallback) {
-    try {
-      const raw = localStorage.getItem(key);
-      return raw ? JSON.parse(raw) : fallback;
-    } catch (error) {
-      return fallback;
-    }
-  }
-
-  function writeStore(key, value) {
-    try { localStorage.setItem(key, JSON.stringify(value)); } catch (error) { /* ignore */ }
-  }
+  const readStore = (key, fallback) => AainaCore.readStore(key, fallback);
+  const writeStore = (key, value) => AainaCore.writeStore(key, value);
+  let remoteBookings = [];
+  let requestKey = AainaAPI.uuid();
 
   const findService = id => serviceList.find(item => item.id === id);
   const findCategory = id => serviceCategories.find(item => item.id === id);
@@ -77,7 +67,7 @@
   const saved = readStore(keys.cart, { services: [], combo: null });
   const state = {
     step: 1,
-    services: (saved.services || []).filter(id => findService(id) && !findService(id).bridal),
+    services: [...new Set((saved.services || []).filter(id => findService(id) && !findService(id).bridal))],
     combo: saved.combo || null,
     stylist: 'any',
     date: null,
@@ -99,16 +89,12 @@
   }
 
   function totals(ids, comboId) {
-    const picked = ids.map(findService);
-    const subtotal = picked.reduce((sum, item) => sum + priceOf(item), 0);
-    const minutes = picked.reduce((sum, item) => sum + item.mins, 0);
-    const combo = comboList.find(item => item.id === comboId);
-    const active = combo && combo.ids.every(id => ids.includes(id)) ? combo : null;
-    const discount = active ? Math.round(active.ids.reduce((sum, id) => sum + findService(id).price, 0) * active.percent / 100) : 0;
-    return { picked, subtotal, minutes, combo: active, discount, total: subtotal - discount };
+    if (!ids.length) return { picked: [], subtotal: 0, minutes: 0, combo: null, discount: 0, total: 0 };
+    const sum = AainaCore.bill(ids, comboId, serviceList, comboList, AainaCore.rewardAvailable(bookings()));
+    return { ...sum, picked: sum.items, minutes: sum.mins, discount: sum.discount };
   }
 
-  const current = () => totals(state.services, comboIsActive() ? state.combo : null);
+  const current = () => state.editing ? { picked: state.editing.lineItems || state.editing.services.map(findService), lineItems: state.editing.lineItems, subtotal: state.editing.subtotal || state.editing.total + state.editing.discount, minutes: state.editing.mins, combo: null, discount: state.editing.discount, total: state.editing.total } : totals(state.services, comboIsActive() ? state.combo : null);
 
   function saveCart() {
     writeStore(keys.cart, { services: state.services, combo: state.combo });
@@ -116,28 +102,27 @@
 
   /* ---------- slots ---------- */
 
-  function bookings() { return readStore(keys.list, []); }
+  function bookings() { return AainaAPI.live ? remoteBookings : AainaCore.validBookings(readStore(keys.list, []), serviceList, stylistList); }
 
   function slotTaken(key, time, stylistId) {
-    const takenByYou = bookings().some(b => b.status === 'confirmed' && b.date === key && b.time === time &&
-      (!state.editing || b.id !== state.editing.id) && (b.stylist === stylistId || b.stylist === 'any' || stylistId === 'any'));
-    if (takenByYou) return true;
-
-    // a steady pattern of "already booked" slots, so the day looks real
-    let sum = 0;
-    for (const ch of key + time + stylistId) sum = (sum * 31 + ch.charCodeAt(0)) % 997;
-    return sum % 10 < (stylistId === 'any' ? 2 : 3);
+    if (AainaAPI.live) return false; // The API supplies only currently available slots.
+    try {
+      AainaCore.allocation({ date: key, time, stylist: stylistId, services: state.services, catalog: serviceList, artists: stylistList, bookings: bookings(), excludeId: state.editing?.id });
+      return false;
+    } catch { return true; }
   }
 
   function slotsFor(key, mins) {
     const date = fromKey(key);
-    const [open, close] = openHours[date.getDay()];
+    const pair = (AainaAPI.config?.hours || openHours)[date.getDay()];
+    if (!pair) return [];
+    const [open, close] = pair;
     const now = new Date();
     const isToday = key === dateKey(now);
     const nowMinutes = now.getHours() * 60 + now.getMinutes();
     const list = [];
     for (let t = open * 60; t <= close * 60 - mins; t += 30) {
-      if (isToday && t < nowMinutes + 60) continue;
+      if (AainaCore.startsAt(key, toTime(t)) < Date.now() + 60 * 60000) continue;
       list.push(t);
     }
     return list;
@@ -229,7 +214,7 @@
     const names = cats.map(id => findCategory(id).name);
 
     const card = (id, initial, name, role, matchHtml) => `
-      <button type="button" class="artist-pick ${state.stylist === id ? 'on' : ''}" data-stylist="${id}" aria-pressed="${state.stylist === id}">
+      <button type="button" class="artist-pick ${state.stylist === id ? 'on' : ''}" data-stylist="${id}" ${id !== 'any' && !state.services.some(service => findStylist(id).cats.includes(findService(service).cat)) ? 'disabled' : ''} aria-pressed="${state.stylist === id}">
         <span class="av">${initial}</span><b>${name}</b><small>${role}</small>${matchHtml}
       </button>`;
 
@@ -246,14 +231,14 @@
 
     const chosen = findStylist(state.stylist);
     if (chosen && cats.some(c => !chosen.cats.includes(c))) {
-      html += `<p class="artist-note">${chosen.name.split(' ')[0]} will not do all of your services (${esc(names.join(', '))}). We will assign another artist for the rest, at the same time.</p>`;
+      html += `<p class="artist-note">${chosen.name.split(' ')[0]} will handle their specialist services. Another qualified artist will handle the remaining services during your visit (${esc(names.join(', '))}).</p>`;
     }
     stepBody.innerHTML = html;
   }
 
   function renderStep3() {
     const t = current();
-    const today = new Date();
+    const today = fromKey(AainaCore.todayKey());
     let strip = '';
     for (let i = 0; i < 14; i++) {
       const d = new Date(today.getFullYear(), today.getMonth(), today.getDate() + i);
@@ -265,7 +250,12 @@
 
     let slotsHtml = '<div class="no-slots">Choose a date to see available times.</div>';
     if (state.date) {
-      const all = slotsFor(state.date, t.minutes || 30);
+      const remote = AainaAPI.live ? AainaAPI.schedule({ date: state.date, services: state.services.join(','), stylist: state.stylist, ...(state.editing ? { exclude: state.editing.id } : {}) }, renderStep3) : null;
+      const all = AainaAPI.live ? (remote || []).map(slot => toMinutes(slot.time)) : slotsFor(state.date, t.minutes || 30);
+      if (AainaAPI.live && remote === null) {
+        stepBody.innerHTML = '<h2 class="step-title">Pick a date and time</h2><div class="date-strip">' + strip + '</div><p role="status">Checking studio availability…</p>';
+        return;
+      }
       if (all.length === 0) {
         slotsHtml = '<div class="no-slots">No time left on this day for your services. Please pick another date.</div>';
       } else {
@@ -281,7 +271,7 @@
 
     stepBody.innerHTML = `
       <h2 class="step-title">Pick a date and time</h2>
-      <p class="step-sub">The next 14 days are open for booking.</p>
+      <p class="step-sub">Choose from the next 14 days. All times are India Standard Time.</p>
       <div class="date-strip">${strip}</div>
       <div class="slot-head"><h3>Available times</h3><span>Your services take about ${durationText(t.minutes || 30)}</span></div>
       ${slotsHtml}`;
@@ -344,7 +334,7 @@
 
   function canLeave(step) {
     if (step === 1 && state.services.length === 0) { showError('Choose at least one service to continue.'); return false; }
-    if (step === 3 && (!state.date || !state.time)) { showError('Pick a date and a time slot to continue.'); return false; }
+    if ((step === 3 || state.editing) && (!state.date || !state.time)) { showError('Pick a date and a time slot to continue.'); return false; }
     if (step === 4) {
       state.name = document.querySelector('#bkName').value.trim();
       state.phone = document.querySelector('#bkPhone').value;
@@ -360,50 +350,52 @@
   }
 
   function go(step) {
-    state.step = step;
+    state.step = state.editing ? 3 : step;
     render();
     document.querySelector('.book-section').scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
   /* ---------- confirming ---------- */
 
-  function newId() {
-    const used = bookings().map(b => b.id);
-    let id;
-    do { id = 'AAI-' + Math.floor(1000 + Math.random() * 9000); } while (used.includes(id));
-    return id;
-  }
+  function newId() { return 'AAI-' + AainaAPI.uuid(); }
 
   function saveBooking(booking) {
+    if (AainaAPI.live) { remoteBookings = remoteBookings.filter(item => item.id !== booking.id).concat(booking); return; }
     const list = bookings().filter(b => b.id !== booking.id);
     list.push(booking);
     writeStore(keys.list, list);
     writeStore(keys.last, booking.id);
   }
 
-  function confirmBooking() {
-    const t = current();
-    let booking;
-
-    if (state.editing) {
-      booking = { ...state.editing, date: state.date, time: state.time, stylist: state.stylist, status: 'confirmed', rescheduled: true };
-    } else {
-      booking = {
-        id: newId(), name: state.name, phone: state.phone, notes: state.notes,
-        services: [...state.services], combo: t.combo ? t.combo.id : null,
-        stylist: state.stylist, date: state.date, time: state.time,
-        mins: t.minutes, total: t.total, discount: t.discount, status: 'confirmed', rescheduled: false
-      };
-      writeStore(keys.cart, { services: [], combo: null });   // the services page tray starts fresh
-    }
-
-    saveBooking(booking);
-    state.editing = null;
-    showConfirmation(booking);
+  async function confirmBooking() {
+    if (state.submitting) return;
+    state.submitting = true;
+    stepNav.querySelectorAll('button').forEach(button => { button.disabled = true; });
+    try {
+      if (!state.date || !state.time) throw Error('Pick a valid date and time before confirming.');
+      const t = current();
+      let booking;
+      if (AainaAPI.live) {
+        const user = await AainaAPI.ensureUser({ name: state.name, phone: state.phone });
+        state.name = user.name; state.phone = user.phone;
+        booking = state.editing
+          ? await AainaAPI.changeBooking(state.editing.id, 'reschedule', { date: state.date, time: state.time })
+          : await AainaAPI.createBooking({ services: state.services, combo: state.combo, stylist: state.stylist, date: state.date, time: state.time, notes: state.notes }, requestKey);
+      } else {
+        const assignments = AainaCore.allocation({ date: state.date, time: state.time, services: state.services, stylist: state.stylist, catalog: serviceList, artists: stylistList, bookings: bookings(), excludeId: state.editing?.id });
+        if (state.editing) {
+          if (!AainaCore.canChange(state.editing)) throw Error('Appointments can be changed until 4 hours before their start.');
+          booking = { ...state.editing, date: state.date, time: state.time, assignments, rescheduled: true };
+        } else booking = { id: newId(), name: state.name, phone: state.phone, notes: state.notes, services: [...state.services], combo: t.combo?.id || null, stylist: state.stylist, date: state.date, time: state.time, assignments, lineItems: t.lineItems, mins: t.minutes, total: t.total, discount: t.discount, status: 'confirmed', rescheduled: false };
+      }
+      if (!state.editing) writeStore(keys.cart, { services: [], combo: null });
+      saveBooking(booking); AainaAPI.clearSchedule(); state.editing = null; showConfirmation(booking);
+    } catch (error) { showError(error.message); AainaAPI.clearSchedule(); }
+    finally { state.submitting = false; stepNav.querySelectorAll('button').forEach(button => { button.disabled = false; }); }
   }
 
   function showConfirmation(booking) {
-    const t = totals(booking.services, booking.combo);
+    const t = { picked: booking.lineItems || booking.services.map(findService), total: booking.total, minutes: booking.mins };
     const cancelled = booking.status === 'cancelled';
     const stylist = booking.stylist === 'any' ? 'Any available artist' : findStylist(booking.stylist).name;
     const when = `${longDate(booking.date)}, ${timeText(toMinutes(booking.time))}`;
@@ -411,7 +403,8 @@
     let heading = `You are booked, ${esc(booking.name.split(' ')[0])}!`;
     let line = `We will see you on ${when}.`;
     if (booking.rescheduled) { heading = 'Booking rescheduled'; line = `Your new time is ${when}.`; }
-    if (cancelled) { heading = 'Booking cancelled'; line = 'This booking has been cancelled. You can book a new time any time.'; }
+    if (cancelled) { heading = 'Booking cancelled'; line = 'This appointment has been cancelled.'; }
+    if (booking.status === 'pending') { heading = 'Appointment requested'; line = 'Your request is saved. The studio will confirm your appointment.'; }
 
     confirmView.innerHTML = `
       <div class="confirm">
@@ -433,7 +426,7 @@
                <a class="btn btn-line" target="_blank" rel="noopener" href="${whatsappLink(booking, when)}">${icon('whatsapp')} Send details on WhatsApp</a>`}
         </div>
         ${cancelled ? '' : `<div class="links"><button type="button" data-act="manage" data-id="${booking.id}">Reschedule or cancel</button><button type="button" data-act="again">Book another</button></div>`}
-        <p class="demo-line">Demo confirmation. No real appointment was made and nothing was sent.</p>
+        <p class="demo-line">${AainaAPI.live ? 'Saved to your account. Notification delivery is queued separately.' : 'Demo confirmation. No real appointment was made and nothing was sent.'}</p>
       </div>`;
 
     flow.hidden = true;
@@ -442,7 +435,7 @@
   }
 
   function whatsappLink(booking, when) {
-    const t = totals(booking.services, booking.combo);
+    const t = { picked: booking.lineItems || booking.services.map(findService), total: booking.total };
     const stylist = booking.stylist === 'any' ? 'Any available artist' : findStylist(booking.stylist).name;
     const lines = [
       `Hi! I just booked an appointment through the Aaina Beauty Studio demo website. Booking ID: ${booking.id}`,
@@ -456,31 +449,12 @@
   }
 
   // a real .ics file, so it opens in any calendar app
-  function downloadCalendar(booking) {
-    const start = fromKey(booking.date);
-    const startMinutes = toMinutes(booking.time);
-    const stamp = date => `${dateKey(date).replace(/-/g, '')}T${String(Math.floor(date.getHours())).padStart(2, '0')}${String(date.getMinutes()).padStart(2, '0')}00`;
-    start.setHours(Math.floor(startMinutes / 60), startMinutes % 60, 0);
-    const end = new Date(start.getTime() + booking.mins * 60000);
-    const names = booking.services.map(id => findService(id).name).join(', ');
-
-    const lines = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Aaina Beauty Studio//Demo//EN', 'BEGIN:VEVENT',
-      `UID:${booking.id}@aaina-demo`, `DTSTAMP:${stamp(new Date())}`, `DTSTART:${stamp(start)}`, `DTEND:${stamp(end)}`,
-      `SUMMARY:Aaina Beauty Studio (${booking.id})`, `DESCRIPTION:${names}`, 'LOCATION:Shop 14\\, Rose Court\\, Civil Lines\\, Lucknow',
-      'END:VEVENT', 'END:VCALENDAR'];
-
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(new Blob([lines.join('\r\n')], { type: 'text/calendar' }));
-    link.download = `aaina-${booking.id}.ics`;
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    showToast('Calendar file downloaded.');
-  }
+  function downloadCalendar(booking) { AainaAPI.calendar(booking); showToast('Calendar file downloaded.'); }
 
   /* ---------- reschedule + cancel ---------- */
 
   function startReschedule(booking) {
+    if (!AainaCore.canChange(booking)) { showToast('Appointments can be changed until 4 hours before their start.'); return; }
     manageModal.close();
     state.editing = booking;
     state.services = [...booking.services];
@@ -498,9 +472,9 @@
   }
 
   function foundHtml(booking) {
-    const t = totals(booking.services, booking.combo);
+    const t = { picked: booking.lineItems || booking.services.map(findService) };
     return `<div class="found">
-      <div><span>Booking</span><b>${booking.id} <span class="status ${booking.status === 'cancelled' ? 'cancelled' : ''}">${booking.status === 'cancelled' ? 'Cancelled' : 'Confirmed'}</span></b></div>
+      <div><span>Booking</span><b>${booking.id} <span class="status ${booking.status === 'cancelled' ? 'cancelled' : ''}">${booking.status === 'cancelled' ? 'Cancelled' : booking.status === 'pending' ? 'Awaiting confirmation' : booking.status === 'completed' ? 'Completed' : 'Confirmed'}</span></b></div>
       <div><span>When</span><b>${longDate(booking.date)}, ${timeText(toMinutes(booking.time))}</b></div>
       <div><span>Services</span><b>${t.picked.map(item => item.name).join(', ')}</b></div></div>`;
   }
@@ -510,7 +484,7 @@
       const last = readStore(keys.last, '');
       manageBody.innerHTML = `
         <h2>Manage your booking</h2>
-        <p>Enter your booking ID to reschedule or cancel. Demo bookings made in this browser can be found here.</p>
+        <p>${AainaAPI.live ? 'Enter an appointment ID from your verified account.' : 'Enter a demo booking ID saved in this browser.'}</p>
         <div class="field"><label for="manageId">Booking ID</label>
           <input id="manageId" type="text" placeholder="e.g. AAI-1234" value="${esc(last)}" autocomplete="off">
           <span class="field-error" id="manageError">${esc(message || '')}</span></div>
@@ -531,7 +505,8 @@
     }
   }
 
-  function openManage(id) {
+  async function openManage(id) {
+    if (AainaAPI.live) { try { await AainaAPI.ensureUser(); remoteBookings = await AainaAPI.bookings(); } catch (error) { showToast(error.message); return; } }
     const booking = bookings().find(b => b.id === id);
     if (booking) renderManage('found', booking);
     else renderManage('find');
@@ -548,6 +523,7 @@
     const slot = event.target.closest('[data-time]');
 
     if (pick) {
+      state.date = null; state.time = null; AainaAPI.clearSchedule();
       const id = pick.dataset.pick;
       const index = state.services.indexOf(id);
       if (index === -1) state.services.push(id);
@@ -619,6 +595,7 @@
     if (button.dataset.act === 'calendar' && booking) downloadCalendar(booking);
     else if (button.dataset.act === 'manage') openManage(button.dataset.id);
     else if (button.dataset.act === 'again') {
+      requestKey = AainaAPI.uuid();
       Object.assign(state, { step: 1, services: [], combo: null, stylist: 'any', date: null, time: null, notes: '', editing: null });
       confirmView.hidden = true;
       flow.hidden = false;
@@ -627,14 +604,15 @@
     }
   });
 
-  document.querySelector('#manageOpen').addEventListener('click', () => {
+  document.querySelector('#manageOpen').addEventListener('click', async () => {
+    if (AainaAPI.live) { try { await AainaAPI.ensureUser(); remoteBookings = await AainaAPI.bookings(); } catch (error) { showToast(error.message); return; } }
     const last = readStore(keys.last, '');
     renderManage('find');
     if (!manageModal.open) manageModal.showModal();
     if (last) manageBody.querySelector('#manageId').select();
   });
 
-  manageBody.addEventListener('click', event => {
+  manageBody.addEventListener('click', async event => {
     const button = event.target.closest('[data-manage]');
     if (!button) return;
     const action = button.dataset.manage;
@@ -650,8 +628,12 @@
     else if (action === 'ask-cancel' && booking) renderManage('ask-cancel', booking);
     else if (action === 'found' && booking) renderManage('found', booking);
     else if (action === 'cancel' && booking) {
-      booking.status = 'cancelled';
-      saveBooking(booking);
+      if (!AainaCore.canChange(booking)) { showToast('Appointments can be changed until 4 hours before their start.'); return; }
+      try {
+        const cancelled = AainaAPI.live ? await AainaAPI.changeBooking(booking.id, 'cancel') : { ...booking, status: 'cancelled' };
+        Object.assign(booking, cancelled);
+      } catch (error) { showToast(error.message); return; }
+      saveBooking(booking); AainaAPI.clearSchedule();
       manageModal.close();
       showConfirmation(booking);
       showToast(`Booking ${booking.id} cancelled.`);
@@ -676,4 +658,11 @@
   /* ---------- start ---------- */
 
   render();
+  AainaAPI.ready.then(async () => {
+    if (AainaAPI.live && AainaAPI.user) {
+      try { remoteBookings = await AainaAPI.bookings(); } catch (error) { showToast(error.message); }
+    }
+    state.services = state.services.filter(id => findService(id)?.available !== false);
+    render();
+  });
 })();

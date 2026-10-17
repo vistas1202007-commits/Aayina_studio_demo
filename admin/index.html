@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex,nofollow"><meta name="theme-color" content="#6e1a2f">
+  <title>Studio desk | Aaina</title>
+  <link rel="icon" href="../favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="../style.css"><link rel="stylesheet" href="../refresh.css"><link rel="stylesheet" href="admin.css">
+</head>
+<body>
+  <a class="skip-link" href="#desk">Skip to studio desk</a>
+  <div class="desk-layout">
+    <aside class="desk-sidebar">
+      <a href="../index.html" class="desk-brand"><span class="logo-mark">A</span><span>AAINA<small>THE STUDIO DESK</small></span></a>
+      <p class="sidebar-label">YOUR WORKSPACE</p>
+      <nav aria-label="Studio sections">
+        <button data-panel="calendar" class="active">◷ <span>Appointments</span></button>
+        <button data-panel="leads">♡ <span>Enquiries</span></button>
+        <button data-panel="services">✦ <span>Service menu</span></button>
+        <button data-panel="schedule">▦ <span>Hours &amp; leave</span></button>
+        <button data-panel="notifications">↗ <span>Notifications</span></button>
+      </nav>
+      <div class="sidebar-foot"><p>A little care.<br>A beautifully organised day.</p><a href="../index.html">Open website ↗</a><button id="logout" hidden>Sign out</button></div>
+    </aside>
+    <main id="desk" tabindex="-1">
+      <header class="desk-header"><div><p class="eyebrow">AAINA / STUDIO OPERATIONS</p><h1>A good day starts here.</h1><p id="deskSubtitle">Appointments, people and the little details.</p></div><span class="desk-date" id="today"></span></header>
+      <p id="deskMessage" class="desk-message" role="status" hidden></p>
+      <section id="authPanel" class="desk-card" hidden><p class="eyebrow">FOR THE STUDIO TEAM</p><h2>Your studio, all together.</h2><p>Sign in with an authorised phone number to manage appointments and enquiries.</p><button class="btn btn-wine" id="signIn">Sign in securely</button></section>
+      <div id="workspace" hidden>
+        <section class="desk-stats" id="stats" aria-label="Studio overview"></section>
+        <section class="desk-card" id="content" aria-live="polite"></section>
+      </div>
+    </main>
+  </div>
+  <dialog id="editBooking" aria-labelledby="editTitle"><form id="bookingForm"><div class="dialog-heading"><div><p class="eyebrow">APPOINTMENT DETAILS</p><h2 id="editTitle">Manage appointment</h2></div><button type="button" class="dialog-close" data-close aria-label="Close appointment">×</button></div><div id="bookingInfo"></div><label>Status<select name="status"><option value="confirmed">Confirm appointment</option><option value="cancelled">Cancel appointment</option><option value="completed">Mark completed</option></select></label><div class="form-grid"><label>Date<input name="date" type="date" required></label><label>Start time<input name="time" type="time" required></label></div><label>Preferred artist<select name="stylist"></select></label><p class="form-error" role="alert"></p><button class="btn btn-wine" type="submit">Save appointment</button></form></dialog>
+  <script src="../data.js"></script><script src="../core.js"></script><script src="../runtime-config.js"></script><script src="../client.js"></script><script src="admin.js"></script>
+</body>
+</html>

@@ -8,11 +8,22 @@
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;800&family=Cormorant+Garamond:ital,wght@0,500;0,600;1,500;1,600&family=DM+Sans:wght@400;500;700&family=Marcellus&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;1,500;1,600&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
   <link rel="stylesheet" href="services.css">
+  <link rel="manifest" href="manifest.webmanifest">
+  <meta name="theme-color" content="#6E1A2F">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Aaina Beauty Studio">
+  <meta property="og:title" content="Aaina Beauty Studio — Make time for yourself">
+  <meta property="og:description" content="Explore salon services, plan your bridal look, and find your next appointment.">
+  <meta property="og:image" content="https://strong-cucurucho-858239.netlify.app/images/hero-glam.jpg">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="canonical" href="https://strong-cucurucho-858239.netlify.app/services.html">
+  <link rel="stylesheet" href="refresh.css">
 </head>
 <body>
+  <a class="skip-link" href="#main-content">Skip to content</a>
 
   <div class="topbar">
     Festive offer: <b>20% off Hair Spa</b> this month.
@@ -46,7 +57,7 @@
     </div>
   </header>
 
-  <div class="mobile-menu" id="mobileMenu" aria-hidden="true">
+  <dialog class="mobile-menu" id="mobileMenu" aria-label="Navigation">
     <div class="mm-top">
       <span class="logo">
         <span class="logo-mark">A</span>
@@ -65,9 +76,10 @@
       <span class="open-badge" data-open><i></i><b>Open now</b></span>
       <a class="btn btn-wine" href="booking.html">Book Appointment</a>
     </div>
-  </div>
+  </dialog>
 
-  <main>
+  <main id="main-content" tabindex="-1">
+    <div class="demo-banner" data-demo-mode>Explore the studio demo <span>Sample prices, fictional reviews and AI-generated photos. No real appointments are made.</span></div>
 
     <section class="page-head">
       <div class="wrap">
@@ -187,6 +199,8 @@
         </div>
       </div>
       <div class="footer-bottom">
+        <a href="privacy.html">Privacy &amp; your data</a>
+        <button type="button" class="install-button" data-install hidden>Install app</button>
         <span>© 2026 Aaina Beauty Studio. Demo project, all names, prices and reviews are fictional.</span>
         <span>Designed and developed by <b>Shivani Sharma</b></span>
       </div>
@@ -214,8 +228,12 @@
   <div class="vistas-tag" title="Crafted by Vistas Atelier"><i>✦</i> VISTAS <span class="more">Crafted by Vistas Atelier</span></div>
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
-  <script src="script.js"></script>
   <script src="data.js"></script>
+  <script src="core.js"></script>
+  <script src="runtime-config.js"></script>
+  <script src="client.js"></script>
+  <script src="pwa.js"></script>
+  <script src="script.js"></script>
   <script src="services.js"></script>
 </body>
 </html>

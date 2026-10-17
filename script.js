@@ -1,5 +1,4 @@
-/* Aaina Beauty Studio - shared script
-   Everything here is front-end only. No data is saved or sent anywhere. */
+/* Shared site interactions. Live enquiries use client.js; demo actions stay explicitly local. */
 
 /* ---------- contact details ---------- */
 // WhatsApp messages made by the scripts use these. The html files also have the number in tel: and wa.me links.
@@ -70,6 +69,8 @@ const burger = document.querySelector('.nav-actions .burger');
 
 function setMenu(open) {
   if (!mobileMenu) return;
+  if (open && !mobileMenu.open) mobileMenu.showModal();
+  if (!open && mobileMenu.open) mobileMenu.close();
   mobileMenu.classList.toggle('open', open);
   mobileMenu.setAttribute('aria-hidden', String(!open));
   burger.setAttribute('aria-expanded', String(open));
@@ -77,6 +78,7 @@ function setMenu(open) {
 }
 
 if (burger) burger.addEventListener('click', () => setMenu(true));
+if (mobileMenu) mobileMenu.addEventListener('cancel', () => setMenu(false));
 document.querySelectorAll('[data-close-menu], .mobile-menu a').forEach(el => {
   el.addEventListener('click', () => setMenu(false));
 });
@@ -100,29 +102,15 @@ function formatHour(h) {
   return (h % 12 || 12) + (h >= 12 ? ' PM' : ' AM');
 }
 
-function getStatus() {
-  const now = new Date();
-  const day = now.getDay();
-  const time = now.getHours() + now.getMinutes() / 60;
-  const [opens, closes] = hours[day];
+function getStatus() { return AainaCore.openStatus(AainaAPI.config?.hours || hours, Date.now(), AainaAPI.config?.closures || []); }
 
-  if (time >= opens && time < closes) {
-    return { open: true, text: `Open now · Closes ${formatHour(closes)}` };
-  }
-  if (time < opens) {
-    return { open: false, text: `Closed · Opens today ${formatHour(opens)}` };
-  }
-  const tomorrow = hours[(day + 1) % 7];
-  return { open: false, text: `Closed · Opens tomorrow ${formatHour(tomorrow[0])}` };
+function refreshOpenBadges() {
+  const status = getStatus();
+  document.querySelectorAll('[data-open]').forEach(badge => { badge.querySelector('b').textContent = status.text; badge.classList.toggle('closed', !status.open); });
 }
+refreshOpenBadges(); AainaAPI.ready.then(refreshOpenBadges); setInterval(refreshOpenBadges, 60000);
 
-const status = getStatus();
-document.querySelectorAll('[data-open]').forEach(badge => {
-  badge.querySelector('b').textContent = status.text;
-  badge.classList.toggle('closed', !status.open);
-});
-
-const today = String(new Date().getDay());
+const today = String(new Date(AainaCore.todayKey() + 'T00:00:00Z').getUTCDay());
 document.querySelectorAll('.hours li').forEach(row => {
   if (row.dataset.days.split(',').includes(today)) row.classList.add('today');
 });
@@ -130,7 +118,7 @@ document.querySelectorAll('.hours li').forEach(row => {
 /* ---------- photos: show a soft placeholder until the file exists ---------- */
 
 document.querySelectorAll('.ph img').forEach(img => {
-  const markMissing = () => img.parentElement.classList.add('no-img');
+  const markMissing = () => img.closest('.ph').classList.add('no-img');
   if (img.complete && img.naturalWidth === 0) markMissing();
   img.addEventListener('error', markMissing);
 });
@@ -150,7 +138,7 @@ const lightbox = document.querySelector('#lightbox');
 
 if (lightbox) {
   const lightboxImg = lightbox.querySelector('img');
-  const closeLightbox = () => { lightbox.hidden = true; };
+  const closeLightbox = () => { if (lightbox.open) lightbox.close(); };
 
   document.querySelectorAll('.gal-item, .b-gal-item').forEach(item => {
     item.addEventListener('click', () => {
@@ -161,7 +149,7 @@ if (lightbox) {
       }
       lightboxImg.src = photo.src;
       lightboxImg.alt = photo.alt;
-      lightbox.hidden = false;
+      lightbox.showModal();
     });
   });
 
@@ -180,6 +168,10 @@ const enquiryForm = document.querySelector('#enquiryForm');
 function setError(input, message) {
   const field = input.closest('.field');
   field.classList.toggle('invalid', Boolean(message));
+  input.setAttribute('aria-invalid', String(Boolean(message)));
+  const errorNode = field.querySelector('.field-error');
+  if (!errorNode.id) errorNode.id = (input.id || 'field') + '-error';
+  input.setAttribute('aria-describedby', errorNode.id);
   if (message) field.querySelector('.field-error').textContent = message;
 }
 
@@ -187,7 +179,7 @@ if (enquiryForm) {
   const nameInput = enquiryForm.querySelector('#enqName');
   const phoneInput = enquiryForm.querySelector('#enqPhone');
 
-  enquiryForm.addEventListener('submit', event => {
+  enquiryForm.addEventListener('submit', async event => {
     event.preventDefault();
 
     const name = nameInput.value.trim();
@@ -199,8 +191,13 @@ if (enquiryForm) {
 
     if (enquiryForm.querySelector('.invalid')) return;
 
-    showToast(`Thanks ${name.split(' ')[0]}! We will call you back soon. (Demo, nothing was sent)`);
-    enquiryForm.reset();
+    const submit = enquiryForm.querySelector('[type=submit]'); submit.disabled = true;
+    try {
+      if (AainaAPI.live) { await AainaAPI.lead({ name, phone: digits, service: enquiryForm.querySelector('#enqService').value, message: enquiryForm.querySelector('#enqMessage').value, website: enquiryForm.querySelector('[name=website]')?.value || '' }); showToast('Your enquiry was saved for the studio to review.'); }
+      else showToast('Demo enquiry checked. Nothing was sent or saved.');
+      enquiryForm.reset();
+    } catch (error) { showToast(error.message); }
+    finally { submit.disabled = false; }
   });
 }
 
@@ -241,8 +238,7 @@ function fromInputValue(value) {
 }
 
 function startOfToday() {
-  const now = new Date();
-  return new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  return fromInputValue(AainaCore.todayKey());
 }
 
 function slotStatus(date) {
@@ -276,6 +272,10 @@ function showDateResult() {
     return;
   }
 
+  if (AainaAPI.live) {
+    dateResult.innerHTML = '<h3>Ask about this wedding date</h3><p>Bridal availability depends on your venue, package and artist. Send an enquiry so the studio can confirm it.</p><a class="btn btn-gold" href="#trial" data-hold="enquiry">Request a consultation</a>';
+    return;
+  }
   const status = slotStatus(date);
   const fullDate = date.toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
   const alternatives = nearbyOpenDates(date);
@@ -346,7 +346,7 @@ if (trialForm) {
   trialForm.addEventListener('change', updateTrialWhatsapp);
   updateTrialWhatsapp();
 
-  trialForm.addEventListener('submit', event => {
+  trialForm.addEventListener('submit', async event => {
     event.preventDefault();
 
     const name = trName.value.trim();
@@ -362,7 +362,15 @@ if (trialForm) {
     const packageName = trialForm.querySelector('#trPackage').value;
     const place = trialForm.querySelector('#trPlace').value;
     const prettyDate = fromInputValue(trialDate.value).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' });
-    const bookingId = 'AAB-' + Math.floor(1000 + Math.random() * 9000);
+    let bookingId = 'AAB-' + AainaAPI.uuid();
+    if (AainaAPI.live) {
+      const submit = trialForm.querySelector('[type=submit]'); submit.disabled = true;
+      try {
+        const result = await AainaAPI.lead({ type: /waitlist/i.test(trialForm.querySelector('#trMessage').value) ? 'waitlist' : 'bridal', name, phone: digits, date: trialDate.value, package: packageName, location: place, message: trialForm.querySelector('#trMessage').value, website: trialForm.querySelector('[name=website]')?.value || '' });
+        bookingId = result.id;
+      } catch (error) { showToast(error.message); return; }
+      finally { submit.disabled = false; }
+    }
 
     trialDone.querySelector('#doneName').textContent = name.split(' ')[0];
     trialDone.querySelector('#doneId').textContent = bookingId;
@@ -371,7 +379,7 @@ if (trialForm) {
     trialDone.querySelector('#donePlace').textContent = place;
 
     const text = [
-      `Hi! I just sent a bridal trial request (${bookingId}) through the Aaina Beauty Studio demo website.`,
+      `Hi! I would like to discuss a bridal trial (${bookingId}) through the Aaina Beauty Studio website.`,
       `Name: ${name}`, `Phone: ${digits}`, `Wedding date: ${prettyDate}`,
       `Package: ${packageName}`, `Service location: ${place}`,
       'Please call or message me to confirm the trial.'

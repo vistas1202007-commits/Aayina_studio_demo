@@ -1,0 +1,21 @@
+{
+  "name": "aaina-beauty-studio",
+  "version": "2.0.0",
+  "private": true,
+  "description": "Aaina website, appointment API and studio dashboard",
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "scripts": {
+    "start": "node --env-file-if-exists=.env server/index.cjs",
+    "test": "node --test --test-isolation=none tests/*.test.cjs",
+    "check": "node scripts/check.cjs",
+    "test:browser": "node tests/browser.cjs",
+    "images": "node scripts/images.cjs",
+    "metadata": "node scripts/metadata.cjs"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "^4.14.0",
+    "@playwright/test": "^1.64.1"
+  }
+}

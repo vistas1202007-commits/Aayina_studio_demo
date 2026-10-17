@@ -8,10 +8,21 @@
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;800&family=Cormorant+Garamond:ital,wght@0,500;0,600;1,500;1,600&family=DM+Sans:wght@400;500;700&family=Marcellus&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;1,500;1,600&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
+  <link rel="manifest" href="manifest.webmanifest">
+  <meta name="theme-color" content="#6E1A2F">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Aaina Beauty Studio">
+  <meta property="og:title" content="Aaina Beauty Studio — Make time for yourself">
+  <meta property="og:description" content="Explore salon services, plan your bridal look, and find your next appointment.">
+  <meta property="og:image" content="https://strong-cucurucho-858239.netlify.app/images/hero-glam.jpg">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="canonical" href="https://strong-cucurucho-858239.netlify.app/">
+  <link rel="stylesheet" href="refresh.css">
 </head>
 <body>
+  <a class="skip-link" href="#main-content">Skip to content</a>
 
   <div class="topbar">
     Festive offer: <b>20% off Hair Spa</b> this month.
@@ -45,7 +56,7 @@
     </div>
   </header>
 
-  <div class="mobile-menu" id="mobileMenu" aria-hidden="true">
+  <dialog class="mobile-menu" id="mobileMenu" aria-label="Navigation">
     <div class="mm-top">
       <span class="logo">
         <span class="logo-mark">A</span>
@@ -64,25 +75,26 @@
       <span class="open-badge" data-open><i></i><b>Open now</b></span>
       <a class="btn btn-wine" href="booking.html">Book Appointment</a>
     </div>
-  </div>
+  </dialog>
 
-  <main>
+  <main id="main-content" tabindex="-1">
+    <div class="demo-banner" data-demo-mode>Explore the studio demo <span>Sample prices, fictional reviews and AI-generated photos. No real appointments are made.</span></div>
 
     <!-- HERO -->
     <section class="hero">
       <div class="wrap hero-grid">
         <div class="hero-text">
-          <p class="label">See yourself shine</p>
-          <h1>Your look. <em>Your rules.</em></h1>
-          <p class="hero-sub">Cuts, colour, makeup, nails, waxing and mehendi under one roof. Walk in with a picture on your phone, walk out feeling like yourself.</p>
+          <p class="label">A little time. All for you.</p>
+          <h1>Make time<br>for <em>yourself.</em></h1>
+          <p class="hero-sub">A fresh cut. A little colour. A moment to feel like you. Explore thoughtful beauty services, from everyday rituals to your biggest days.</p>
           <div class="hero-cta">
-            <a class="btn btn-wine" href="booking.html">Book Appointment</a>
-            <a class="btn btn-line" href="services.html">See price menu</a>
+            <a class="btn btn-wine" href="booking.html">Find your appointment <span aria-hidden="true">↗</span></a>
+            <a class="btn btn-line" href="services.html">Explore services</a>
           </div>
           <div class="hero-proof">
             <div class="rating">
-              <span class="stars" aria-hidden="true">★★★★★</span>
-              <p><strong>4.8</strong> rating<br>320+ happy clients</p>
+              <span class="stars" aria-hidden="true">✦</span>
+              <p><strong>Your next chapter</strong><br>Hair · Skin · Nails · Makeup</p>
             </div>
             <span class="open-badge" data-open><i></i><b>Open now</b></span>
           </div>
@@ -90,8 +102,8 @@
 
         <div class="hero-art">
           <div class="arch">
-            <div class="ph" data-photo="hero-glam.jpg">
-              <img src="images/hero-glam.jpg" alt="Woman with soft wavy hair at Aaina Beauty Studio">
+            <div class="ph" data-photo="look-curtain.jpg">
+              <picture><source type="image/webp" srcset="images/look-curtain.480.webp 480w, images/look-curtain.960.webp 960w" sizes="(max-width:700px) 88vw, (max-width:1100px) 40vw, 480px"><img src="images/look-curtain.jpg" alt="Illustrative portrait with a soft layered haircut" width="1050" height="1400" decoding="async" fetchpriority="high"></picture>
             </div>
             <svg class="arch-beads" viewBox="0 0 300 420" aria-hidden="true">
               <defs>
@@ -114,6 +126,7 @@
             <span class="spin-star">✦</span>
           </div>
 
+          <div class="hero-caption">A moment of care, a little everyday magic.</div>
           <div class="float-chip">
             <svg class="icon"><use href="#check"/></svg>
             <span>Walk-ins welcome<small>Appointments preferred</small></span>
@@ -137,7 +150,7 @@
       <div class="wrap">
         <div class="fork">
           <a class="fork-card fork-glam" href="services.html">
-            <div class="ph" data-photo="fork-glam.jpg"><img src="images/fork-glam.jpg" alt="Blowout with soft curls" loading="lazy"></div>
+            <div class="ph" data-photo="fork-glam.jpg"><picture><source type="image/webp" srcset="images/fork-glam.480.webp 480w, images/fork-glam.960.webp 960w" sizes="(max-width:700px) 88vw, (max-width:1100px) 40vw, 480px"><img src="images/fork-glam.jpg" alt="Blowout with soft curls" loading="lazy" width="800" height="800" decoding="async"></picture></div>
             <p class="label">Salon days and party looks</p>
             <h3>Everyday<br>Glam</h3>
             <p class="fork-list">Hair, makeup, nails, skin and waxing.</p>
@@ -145,7 +158,7 @@
           </a>
 
           <a class="fork-card fork-bridal" href="bridal.html">
-            <div class="ph" data-photo="fork-bridal.jpg"><img src="images/fork-bridal.jpg" alt="Bride in red and gold" loading="lazy"></div>
+            <div class="ph" data-photo="fork-bridal.jpg"><picture><source type="image/webp" srcset="images/fork-bridal.480.webp 480w, images/fork-bridal.960.webp 960w" sizes="(max-width:700px) 88vw, (max-width:1100px) 40vw, 480px"><img src="images/fork-bridal.jpg" alt="Bride in red and gold" loading="lazy" width="1086" height="1086" decoding="async"></picture></div>
             <p class="label">Weddings and engagements</p>
             <h3>Bridal</h3>
             <p class="fork-list">Packages, trial sessions, mehendi and bridal nails.</p>
@@ -170,27 +183,27 @@
 
         <div class="svc-grid">
           <a class="svc-card" href="services.html#hair">
-            <div class="ph" data-photo="svc-hair.jpg"><img src="images/svc-hair.jpg" alt="Hair services" loading="lazy"></div>
+            <div class="ph" data-photo="svc-hair.jpg"><picture><source type="image/webp" srcset="images/svc-hair.480.webp 480w, images/svc-hair.960.webp 960w" sizes="(max-width:700px) 88vw, (max-width:1100px) 40vw, 480px"><img src="images/svc-hair.jpg" alt="Hair services" loading="lazy" width="1050" height="1400" decoding="async"></picture></div>
             <div><h3>Hair</h3><p>Cuts, colour, hair spa and smoothening</p><span class="from">from ₹399</span></div>
             <span class="round-btn"><svg class="icon"><use href="#arrow-up-right"/></svg></span>
           </a>
           <a class="svc-card" href="services.html#makeup">
-            <div class="ph" data-photo="svc-makeup.jpg"><img src="images/svc-makeup.jpg" alt="Makeup services" loading="lazy"></div>
+            <div class="ph" data-photo="svc-makeup.jpg"><picture><source type="image/webp" srcset="images/svc-makeup.480.webp 480w, images/svc-makeup.960.webp 960w" sizes="(max-width:700px) 88vw, (max-width:1100px) 40vw, 480px"><img src="images/svc-makeup.jpg" alt="Makeup services" loading="lazy" width="1050" height="1400" decoding="async"></picture></div>
             <div><h3>Makeup</h3><p>Party, engagement and soft glam looks</p><span class="from">from ₹1,499</span></div>
             <span class="round-btn"><svg class="icon"><use href="#arrow-up-right"/></svg></span>
           </a>
           <a class="svc-card" href="services.html#skin">
-            <div class="ph" data-photo="svc-skin.jpg"><img src="images/svc-skin.jpg" alt="Skin and waxing services" loading="lazy"></div>
+            <div class="ph" data-photo="svc-skin.jpg"><picture><source type="image/webp" srcset="images/svc-skin.480.webp 480w, images/svc-skin.960.webp 960w" sizes="(max-width:700px) 88vw, (max-width:1100px) 40vw, 480px"><img src="images/svc-skin.jpg" alt="Skin and waxing services" loading="lazy" width="1050" height="1400" decoding="async"></picture></div>
             <div><h3>Skin &amp; Waxing</h3><p>Facials, clean-ups, fresh wax and threading</p><span class="from">from ₹149</span></div>
             <span class="round-btn"><svg class="icon"><use href="#arrow-up-right"/></svg></span>
           </a>
           <a class="svc-card" href="services.html#nails">
-            <div class="ph" data-photo="svc-nails.jpg"><img src="images/svc-nails.jpg" alt="Nail art" loading="lazy"></div>
+            <div class="ph" data-photo="svc-nails.jpg"><picture><source type="image/webp" srcset="images/svc-nails.480.webp 480w, images/svc-nails.960.webp 960w" sizes="(max-width:700px) 88vw, (max-width:1100px) 40vw, 480px"><img src="images/svc-nails.jpg" alt="Nail art" loading="lazy" width="1086" height="679" decoding="async"></picture></div>
             <div><h3>Nails</h3><p>Gel polish, extensions and nail art</p><span class="from">from ₹499</span></div>
             <span class="round-btn"><svg class="icon"><use href="#arrow-up-right"/></svg></span>
           </a>
           <a class="svc-card" href="services.html#mehendi">
-            <div class="ph" data-photo="svc-mehendi.jpg"><img src="images/svc-mehendi.jpg" alt="Mehendi design" loading="lazy"></div>
+            <div class="ph" data-photo="svc-mehendi.jpg"><picture><source type="image/webp" srcset="images/svc-mehendi.480.webp 480w, images/svc-mehendi.960.webp 960w" sizes="(max-width:700px) 88vw, (max-width:1100px) 40vw, 480px"><img src="images/svc-mehendi.jpg" alt="Mehendi design" loading="lazy" width="1086" height="679" decoding="async"></picture></div>
             <div><h3>Mehendi</h3><p>Festive and party designs, hands and feet</p><span class="from">from ₹399</span></div>
             <span class="round-btn"><svg class="icon"><use href="#arrow-up-right"/></svg></span>
           </a>
@@ -211,25 +224,25 @@
 
         <div class="looks">
           <article class="look">
-            <div class="ph" data-photo="look-butterfly.jpg"><img src="images/look-butterfly.jpg" alt="Butterfly cut" loading="lazy"></div>
+            <div class="ph" data-photo="look-butterfly.jpg"><picture><source type="image/webp" srcset="images/look-butterfly.480.webp 480w, images/look-butterfly.960.webp 960w" sizes="(max-width:700px) 88vw, (max-width:1100px) 40vw, 480px"><img src="images/look-butterfly.jpg" alt="Butterfly cut" loading="lazy" width="1050" height="1400" decoding="async"></picture></div>
             <h3>Butterfly Cut</h3>
             <p class="meta">60 min, from ₹899</p>
             <a class="text-link" href="booking.html?look=butterfly-cut">Book this look <svg class="icon"><use href="#arrow"/></svg></a>
           </article>
           <article class="look">
-            <div class="ph" data-photo="look-curtain.jpg"><img src="images/look-curtain.jpg" alt="Curtain bangs" loading="lazy"></div>
+            <div class="ph" data-photo="look-curtain.jpg"><picture><source type="image/webp" srcset="images/look-curtain.480.webp 480w, images/look-curtain.960.webp 960w" sizes="(max-width:700px) 88vw, (max-width:1100px) 40vw, 480px"><img src="images/look-curtain.jpg" alt="Curtain bangs" loading="lazy" width="1050" height="1400" decoding="async"></picture></div>
             <h3>Curtain Bangs</h3>
             <p class="meta">20 min, from ₹299</p>
             <a class="text-link" href="booking.html?look=curtain-bangs">Book this look <svg class="icon"><use href="#arrow"/></svg></a>
           </article>
           <article class="look">
-            <div class="ph" data-photo="look-waterfall.jpg"><img src="images/look-waterfall.jpg" alt="Waterfall braid with curls" loading="lazy"></div>
+            <div class="ph" data-photo="look-waterfall.jpg"><picture><source type="image/webp" srcset="images/look-waterfall.480.webp 480w, images/look-waterfall.960.webp 960w" sizes="(max-width:700px) 88vw, (max-width:1100px) 40vw, 480px"><img src="images/look-waterfall.jpg" alt="Waterfall braid with curls" loading="lazy" width="1050" height="1400" decoding="async"></picture></div>
             <h3>Waterfall Braid</h3>
             <p class="meta">45 min, from ₹599</p>
             <a class="text-link" href="booking.html?look=waterfall-braid">Book this look <svg class="icon"><use href="#arrow"/></svg></a>
           </article>
           <article class="look">
-            <div class="ph" data-photo="look-crown.jpg"><img src="images/look-crown.jpg" alt="Braided crown updo" loading="lazy"></div>
+            <div class="ph" data-photo="look-crown.jpg"><picture><source type="image/webp" srcset="images/look-crown.480.webp 480w, images/look-crown.960.webp 960w" sizes="(max-width:700px) 88vw, (max-width:1100px) 40vw, 480px"><img src="images/look-crown.jpg" alt="Braided crown updo" loading="lazy" width="1050" height="1400" decoding="async"></picture></div>
             <h3>Braided Crown</h3>
             <p class="meta">45 min, from ₹799</p>
             <a class="text-link" href="booking.html?look=braided-crown">Book this look <svg class="icon"><use href="#arrow"/></svg></a>
@@ -262,8 +275,8 @@
         </div>
 
         <div class="ba" id="ba">
-          <div class="ph after-img" data-photo="after.jpg"><img src="images/after.jpg" alt="Hair after the makeover"></div>
-          <div class="ph before-img" data-photo="before.jpg"><img src="images/before.jpg" alt="Hair before the makeover"></div>
+          <div class="ph after-img" data-photo="after.jpg"><picture><source type="image/webp" srcset="images/after.480.webp 480w, images/after.960.webp 960w" sizes="(max-width:700px) 88vw, (max-width:1100px) 40vw, 480px"><img src="images/after.jpg" alt="Hair after the makeover" width="800" height="1000" decoding="async"></picture></div>
+          <div class="ph before-img" data-photo="before.jpg"><picture><source type="image/webp" srcset="images/before.480.webp 480w, images/before.960.webp 960w" sizes="(max-width:700px) 88vw, (max-width:1100px) 40vw, 480px"><img src="images/before.jpg" alt="Hair before the makeover" width="800" height="1000" decoding="async"></picture></div>
           <span class="ba-tag b">Before</span>
           <span class="ba-tag a">After</span>
           <div class="ba-handle"></div>
@@ -285,25 +298,25 @@
 
         <div class="team">
           <article class="artist">
-            <div class="ph" data-photo="team-riya.jpg"><img src="images/team-riya.jpg" alt="Riya Malhotra" loading="lazy"></div>
+            <div class="ph" data-photo="team-riya.jpg"><picture><source type="image/webp" srcset="images/team-riya.480.webp 480w, images/team-riya.960.webp 960w" sizes="(max-width:700px) 88vw, (max-width:1100px) 40vw, 480px"><img src="images/team-riya.jpg" alt="Riya Malhotra" loading="lazy" width="980" height="1225" decoding="async"></picture></div>
             <h3>Riya Malhotra</h3>
             <p class="role">Creative Director, Hair</p>
             <p>Cuts, colour and curls</p>
           </article>
           <article class="artist">
-            <div class="ph" data-photo="team-naina.jpg"><img src="images/team-naina.jpg" alt="Naina Verma" loading="lazy"></div>
+            <div class="ph" data-photo="team-naina.jpg"><picture><source type="image/webp" srcset="images/team-naina.480.webp 480w, images/team-naina.960.webp 960w" sizes="(max-width:700px) 88vw, (max-width:1100px) 40vw, 480px"><img src="images/team-naina.jpg" alt="Naina Verma" loading="lazy" width="950" height="1188" decoding="async"></picture></div>
             <h3>Naina Verma</h3>
             <p class="role">Makeup Artist</p>
             <p>Soft glam and party looks</p>
           </article>
           <article class="artist">
-            <div class="ph" data-photo="team-simran.jpg"><img src="images/team-simran.jpg" alt="Simran Kaur" loading="lazy"></div>
+            <div class="ph" data-photo="team-simran.jpg"><picture><source type="image/webp" srcset="images/team-simran.480.webp 480w, images/team-simran.960.webp 960w" sizes="(max-width:700px) 88vw, (max-width:1100px) 40vw, 480px"><img src="images/team-simran.jpg" alt="Simran Kaur" loading="lazy" width="1120" height="1400" decoding="async"></picture></div>
             <h3>Simran Kaur</h3>
             <p class="role">Skin and Nails</p>
             <p>Facials, waxing and gel nails</p>
           </article>
           <article class="artist">
-            <div class="ph" data-photo="team-pooja.jpg"><img src="images/team-pooja.jpg" alt="Pooja Saini" loading="lazy"></div>
+            <div class="ph" data-photo="team-pooja.jpg"><picture><source type="image/webp" srcset="images/team-pooja.480.webp 480w, images/team-pooja.960.webp 960w" sizes="(max-width:700px) 88vw, (max-width:1100px) 40vw, 480px"><img src="images/team-pooja.jpg" alt="Pooja Saini" loading="lazy" width="1086" height="1358" decoding="async"></picture></div>
             <h3>Pooja Saini</h3>
             <p class="role">Mehendi and Bridal</p>
             <p>Party and bridal mehendi</p>
@@ -360,11 +373,11 @@
         </div>
 
         <div class="gallery">
-          <button class="gal-item" aria-label="Open photo 1"><div class="ph" data-photo="gallery-1.jpg"><img src="images/gallery-1.jpg" alt="Studio work 1" loading="lazy"></div></button>
-          <button class="gal-item" aria-label="Open photo 2"><div class="ph" data-photo="gallery-2.jpg"><img src="images/gallery-2.jpg" alt="Studio work 2" loading="lazy"></div></button>
-          <button class="gal-item" aria-label="Open photo 3"><div class="ph" data-photo="gallery-3.jpg"><img src="images/gallery-3.jpg" alt="Studio work 3" loading="lazy"></div></button>
-          <button class="gal-item" aria-label="Open photo 4"><div class="ph" data-photo="gallery-4.jpg"><img src="images/gallery-4.jpg" alt="Studio work 4" loading="lazy"></div></button>
-          <button class="gal-item" aria-label="Open photo 5"><div class="ph" data-photo="gallery-5.jpg"><img src="images/gallery-5.jpg" alt="Studio work 5" loading="lazy"></div></button>
+          <button class="gal-item" aria-label="Open photo 1"><div class="ph" data-photo="gallery-1.jpg"><picture><source type="image/webp" srcset="images/gallery-1.480.webp 480w, images/gallery-1.960.webp 960w" sizes="(max-width:700px) 88vw, (max-width:1100px) 40vw, 480px"><img src="images/gallery-1.jpg" alt="Studio work 1" loading="lazy" width="1086" height="1086" decoding="async"></picture></div></button>
+          <button class="gal-item" aria-label="Open photo 2"><div class="ph" data-photo="gallery-2.jpg"><picture><source type="image/webp" srcset="images/gallery-2.480.webp 480w, images/gallery-2.960.webp 960w" sizes="(max-width:700px) 88vw, (max-width:1100px) 40vw, 480px"><img src="images/gallery-2.jpg" alt="Studio work 2" loading="lazy" width="1086" height="1086" decoding="async"></picture></div></button>
+          <button class="gal-item" aria-label="Open photo 3"><div class="ph" data-photo="gallery-3.jpg"><picture><source type="image/webp" srcset="images/gallery-3.480.webp 480w, images/gallery-3.960.webp 960w" sizes="(max-width:700px) 88vw, (max-width:1100px) 40vw, 480px"><img src="images/gallery-3.jpg" alt="Studio work 3" loading="lazy" width="1086" height="1086" decoding="async"></picture></div></button>
+          <button class="gal-item" aria-label="Open photo 4"><div class="ph" data-photo="gallery-4.jpg"><picture><source type="image/webp" srcset="images/gallery-4.480.webp 480w, images/gallery-4.960.webp 960w" sizes="(max-width:700px) 88vw, (max-width:1100px) 40vw, 480px"><img src="images/gallery-4.jpg" alt="Studio work 4" loading="lazy" width="1086" height="1086" decoding="async"></picture></div></button>
+          <button class="gal-item" aria-label="Open photo 5"><div class="ph" data-photo="gallery-5.jpg"><picture><source type="image/webp" srcset="images/gallery-5.480.webp 480w, images/gallery-5.960.webp 960w" sizes="(max-width:700px) 88vw, (max-width:1100px) 40vw, 480px"><img src="images/gallery-5.jpg" alt="Studio work 5" loading="lazy" width="1086" height="1086" decoding="async"></picture></div></button>
         </div>
       </div>
     </section>
@@ -459,6 +472,7 @@
           </div>
 
           <form class="enquiry" id="enquiryForm" novalidate>
+            <label class="honeypot" aria-hidden="true">Website<input name="website" tabindex="-1" autocomplete="off"></label>
             <h3>Send an enquiry</h3>
             <p>Tell us what you are looking for and we will call you back.</p>
 
@@ -542,6 +556,8 @@
         </div>
       </div>
       <div class="footer-bottom">
+        <a href="privacy.html">Privacy &amp; your data</a>
+        <button type="button" class="install-button" data-install hidden>Install app</button>
         <span>© 2026 Aaina Beauty Studio. Demo project, all names, prices and reviews are fictional.</span>
         <span>Designed and developed by <b>Shivani Sharma</b></span>
       </div>
@@ -556,12 +572,17 @@
     <a class="btn btn-wine" href="booking.html">Book Appointment</a>
   </div>
 
-  <div class="lightbox" id="lightbox" hidden>
+  <dialog class="lightbox" id="lightbox" aria-label="Photo preview">
     <button class="lb-close" aria-label="Close preview"><svg class="icon"><use href="#close"/></svg></button>
     <img src="" alt="">
-  </div>
+  </dialog>
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
+  <script src="data.js"></script>
+  <script src="core.js"></script>
+  <script src="runtime-config.js"></script>
+  <script src="client.js"></script>
+  <script src="pwa.js"></script>
   <script src="script.js"></script>
 </body>
 </html>

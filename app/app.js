@@ -1,6 +1,4 @@
-/* Aaina Beauty Studio - app demo
-   Front-end only. The cart, saved services and bookings use the same localStorage
-   keys as the website, so both stay in sync in this browser. */
+/* Customer app. Demo selections stay in the browser; verified live records come from the API. */
 
 /* ---------- icons ---------- */
 
@@ -50,6 +48,7 @@ document.body.insertAdjacentHTML('afterbegin', spriteMarkup);
 
 const icon = name => `<svg class="icon"><use href="#${name}"/></svg>`;
 const money = amount => '₹' + amount.toLocaleString('en-IN');
+const esc = AainaCore.esc;
 const findService = id => serviceList.find(item => item.id === id);
 const findArtist = id => stylistList.find(item => item.id === id);
 const catName = id => serviceCategories.find(item => item.id === id).name;
@@ -104,18 +103,8 @@ const keys = {
   profile: 'aainaProfile'
 };
 
-function load(key, fallback) {
-  try {
-    const raw = localStorage.getItem(key);
-    return raw ? JSON.parse(raw) : fallback;
-  } catch (error) {
-    return fallback;
-  }
-}
-
-function save(key, value) {
-  try { localStorage.setItem(key, JSON.stringify(value)); } catch (error) { /* private mode */ }
-}
+const load = (key, fallback) => AainaCore.readStore(key, fallback);
+const save = (key, value) => AainaCore.writeStore(key, value);
 
 /* ---------- dates ---------- */
 
@@ -141,8 +130,8 @@ function timeLabel(time) {
 }
 
 function dayLabel(key) {
-  if (key === dateKey(new Date())) return 'Today';
-  if (key === dateKey(addDays(new Date(), 1))) return 'Tomorrow';
+  if (key === AainaCore.todayKey()) return 'Today';
+  if (key === dateKey(addDays(fromKey(AainaCore.todayKey()), 1))) return 'Tomorrow';
   return fromKey(key).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' });
 }
 
@@ -151,21 +140,10 @@ function longDate(key) {
 }
 
 function startsAt(booking) {
-  const [h, m] = booking.time.split(':').map(Number);
-  const date = fromKey(booking.date);
-  date.setHours(h, m);
-  return date;
+  return new Date(AainaCore.startsAt(booking.date, booking.time));
 }
 
-function openStatus() {
-  const now = new Date();
-  const time = now.getHours() + now.getMinutes() / 60;
-  const [opens, closes] = hours[now.getDay()];
-  const fmt = h => (h % 12 || 12) + (h >= 12 ? ' PM' : ' AM');
-  if (time >= opens && time < closes) return { open: true, text: `Open now · Closes ${fmt(closes)}` };
-  if (time < opens) return { open: false, text: `Closed · Opens today ${fmt(opens)}` };
-  return { open: false, text: `Closed · Opens tomorrow ${fmt(hours[(now.getDay() + 1) % 7][0])}` };
-}
+function openStatus() { return AainaCore.openStatus(AainaAPI.config?.hours || hours, Date.now(), AainaAPI.config?.closures || []); }
 
 /* ---------- state ---------- */
 
@@ -184,14 +162,14 @@ const defaultProfile = {
 let profile, wishlist, cart, bookings;
 
 function seedBookings() {
-  const today = new Date();
+  const today = fromKey(AainaCore.todayKey());
   const make = (id, services, stylist, days, time) => ({
     id, name: profile.name, phone: profile.phone, notes: '',
     services, combo: null, stylist,
     date: dateKey(addDays(today, days)), time,
     mins: services.reduce((sum, item) => sum + findService(item).mins, 0),
     total: services.reduce((sum, item) => sum + priceOf(findService(item)), 0),
-    discount: 0, status: 'confirmed', rescheduled: false
+    discount: 0, status: days < 0 ? 'completed' : 'confirmed', rescheduled: false
   });
   return [
     make('AAI-4821', ['hair-spa'], 'riya', 1, '16:00'),
@@ -201,85 +179,74 @@ function seedBookings() {
 }
 
 function loadState() {
-  profile = { ...defaultProfile, ...load(keys.profile, {}) };
+  profile = AainaAPI.live ? { ...defaultProfile, name: '', phone: '', email: '', ...AainaAPI.user, loggedIn: !!AainaAPI.user } : { ...defaultProfile, ...load(keys.profile, {}) };
+  for (const key of ['name', 'phone', 'email', 'birthday']) if (typeof profile[key] !== 'string') profile[key] = '';
+  profile.phone = cleanPhone(profile.phone);
+  if (profile.birthday && !AainaCore.validDate(profile.birthday)) profile.birthday = '';
   wishlist = load(keys.wishlist, []).filter(findService);
   cart = load(keys.cart, { services: [], combo: null });
-  cart.services = (cart.services || []).filter(findService);
-
-  bookings = load(keys.bookings, []);
-  if (!Array.isArray(bookings)) bookings = [];
-  bookings = bookings.filter(item => item.services && item.services.every(findService));
-  if (bookings.length === 0) {
-    bookings = seedBookings();
-    save(keys.bookings, bookings);
-  }
+  cart.services = [...new Set((cart.services || []).filter(id => findService(id) && findService(id).available !== false))];
+  bookings = AainaAPI.live ? (Array.isArray(bookings) ? bookings : []) : AainaCore.validBookings(load(keys.bookings, []), serviceList, stylistList);
+  if (!AainaAPI.live && bookings.length === 0) { bookings = seedBookings(); save(keys.bookings, bookings); }
 }
 
-const saveProfile = () => save(keys.profile, profile);
+const saveProfile = async () => {
+  if (!AainaAPI.live) return save(keys.profile, profile);
+  if (!AainaAPI.user) return;
+  const result = await AainaAPI.request('/api/me', { method: 'PATCH', body: profile });
+  AainaAPI.user = result.user;
+};
 const saveCart = () => save(keys.cart, cart);
-const saveBookings = () => save(keys.bookings, bookings);
+const saveBookings = () => { if (!AainaAPI.live) save(keys.bookings, bookings); };
 
 // same shape as the website: status is 'confirmed' or 'cancelled', the date decides past or upcoming
 function stateOf(item) {
   if (item.status === 'cancelled') return 'cancelled';
-  return startsAt(item) < new Date() ? 'done' : 'upcoming';
+  if (item.status === 'completed') return 'done';
+  return !AainaAPI.live && startsAt(item) < new Date() ? 'done' : 'upcoming';
 }
 
 const upcoming = () => bookings.filter(item => stateOf(item) === 'upcoming').sort((a, b) => startsAt(a) - startsAt(b));
 const past = () => bookings.filter(item => stateOf(item) !== 'upcoming').sort((a, b) => startsAt(b) - startsAt(a));
 const visits = () => bookings.filter(item => stateOf(item) === 'done').length;
 const stamps = () => visits() % 6;
-const rewardReady = () => stamps() === 5;
+const rewardReady = () => AainaCore.rewardAvailable(bookings);
 
 function bill(ids, comboId) {
-  const items = ids.map(findService);
-  const subtotal = items.reduce((sum, item) => sum + priceOf(item), 0);
-  const mins = items.reduce((sum, item) => sum + item.mins, 0);
-  const combo = comboList.find(item => item.id === comboId && item.ids.every(id => ids.includes(id)));
-  const comboOff = combo ? Math.round(combo.ids.reduce((sum, id) => sum + findService(id).price, 0) * combo.percent / 100) : 0;
-  const reward = rewardReady() ? Math.round((subtotal - comboOff) * rewardPercent / 100) : 0;
-  return { items, subtotal, mins, combo, comboOff, reward, total: subtotal - comboOff - reward };
+  if (!ids.length) return { items: [], subtotal: 0, mins: 0, combo: null, comboOff: 0, reward: 0, total: 0 };
+  return AainaCore.bill(ids, comboId, serviceList, comboList, rewardReady());
 }
 
-function newBookingId() {
-  let id;
-  do { id = 'AAI-' + Math.floor(1000 + Math.random() * 9000); } while (bookings.some(item => item.id === id));
-  return id;
-}
+function newBookingId() { return 'AAI-' + AainaAPI.uuid(); }
 
 /* ---------- slots ---------- */
 
 function slotsFor(key, artist, length = 30) {
-  const date = fromKey(key);
-  const [opens, closes] = hours[date.getDay()];
-  const soonest = Date.now() + 60 * 60000;
+  const ids = resched ? bookings.find(item => item.id === resched.id)?.services : flow?.services?.length ? flow.services : [artist === 'naina' ? 'party-makeup' : artist === 'simran' ? 'glow-facial' : artist === 'pooja' ? 'party-mehendi' : 'hair-spa'];
+  if (AainaAPI.live) return AainaAPI.schedule({ date: key, stylist: artist || 'any', services: (ids || []).join(','), ...(resched ? { exclude: resched.id } : {}) }, () => { if (resched && sheet.open) openReschedule(resched.id); else render(); }) || [];
+  const pair = hours[fromKey(key).getDay()];
+  if (!pair) return [];
   const list = [];
-
-  // the service has to finish before closing time
-  for (let mins = opens * 60; mins + length <= closes * 60; mins += 30) {
-    const h = Math.floor(mins / 60);
-    const m = mins % 60;
-    const at = new Date(date);
-    at.setHours(h, m);
-    // a few slots look taken so the grid feels real
-    const seed = (date.getDate() * 7 + mins / 30 * 3 + (artist || 'any').length) % 9;
-    const time = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
-    const yours = bookings.some(item => item.status === 'confirmed' && item.date === key && item.time === time && (!resched || item.id !== resched.id));
-    list.push({ time, taken: at.getTime() < soonest || seed === 0 || seed === 4 || yours });
+  for (let mins = pair[0] * 60; mins + length <= pair[1] * 60; mins += 30) {
+    const time = AainaCore.timeKey(mins);
+    let taken = false;
+    try { AainaCore.allocation({ date: key, time, services: ids, stylist: artist || 'any', catalog: serviceList, artists: stylistList, bookings, excludeId: resched?.id }); }
+    catch { taken = true; }
+    list.push({ time, taken });
   }
   return list;
 }
 
 function firstFreeDate(artist, length) {
   for (let i = 0; i < 14; i++) {
-    const key = dateKey(addDays(new Date(), i));
+    const key = dateKey(addDays(fromKey(AainaCore.todayKey()), i));
     if (slotsFor(key, artist, length).some(slot => !slot.taken)) return key;
   }
-  return dateKey(new Date());
+  return AainaCore.todayKey();
 }
 
 function pickerHtml(pick) {
-  const days = Array.from({ length: 14 }, (_, i) => addDays(new Date(), i));
+  const days = Array.from({ length: 14 }, (_, i) => addDays(fromKey(AainaCore.todayKey()), i));
 
   const strip = days.map((day, i) => {
     const key = dateKey(day);
@@ -343,7 +310,7 @@ function showToast(message) {
 function go(name) {
   screen = name;
   closeSheet();
-  history.replaceState(null, '', '#' + name);
+  if (location.hash !== '#' + name) history.pushState(null, '', '#' + name);
   render();
   view.scrollTop = 0;
   view.classList.remove('enter');
@@ -372,11 +339,12 @@ function openSheet(html) {
   sheet.innerHTML = `<div class="grab"></div><button class="sheet-close" data-close-sheet aria-label="Close">${icon('close')}</button>${html}`;
   sheet.scrollTop = 0;
   sheet.classList.add('open');
-  backdrop.classList.add('show');
+  if (!sheet.open) sheet.showModal();
 }
 
 function closeSheet() {
   sheet.classList.remove('open');
+  if (sheet.open) sheet.close();
   backdrop.classList.remove('show');
   resched = null;
 }
@@ -542,7 +510,7 @@ function homeScreen() {
           <span class="loyal-gift">${icon('gift')}</span>
         </div>
         <div class="stamps">${stampDots}<span class="stamp gift ${count === 5 ? 'ready' : ''}"><b>${rewardPercent}%</b><small>off</small></span></div>
-        <p>${count === 5 ? `Your 6th visit is ${rewardPercent}% off. It is added at checkout.` : `${5 - count} more visit${5 - count > 1 ? 's' : ''} and your 6th visit is ${rewardPercent}% off.`}</p>
+        <p>${count === 5 ? `${rewardReady() ? `Your 6th visit is ${rewardPercent}% off. It is added at checkout.` : 'Your reward is reserved for an upcoming appointment.'}` : `${5 - count} more visit${5 - count > 1 ? 's' : ''} and your 6th visit is ${rewardPercent}% off.`}</p>
       </article>
     </section>`;
 }
@@ -573,6 +541,7 @@ function serviceRow(item) {
 function serviceListHtml() {
   const query = svcQuery.trim().toLowerCase();
   const list = serviceList.filter(item => {
+    if (item.available === false) return false;
     if (svcCat === 'saved' && !wishlist.includes(item.id)) return false;
     if (svcCat !== 'all' && svcCat !== 'saved' && item.cat !== svcCat) return false;
     return !query || `${item.name} ${item.desc} ${catName(item.cat)}`.toLowerCase().includes(query);
@@ -630,8 +599,8 @@ function bookingCard(item) {
   const date = fromKey(item.date);
   const artist = findArtist(item.stylist);
   const state = stateOf(item);
-  const labels = { upcoming: item.rescheduled ? 'Rescheduled' : 'Confirmed', done: 'Completed', cancelled: 'Cancelled' };
-  const actions = state === 'upcoming'
+  const labels = { upcoming: item.status === 'pending' ? 'Awaiting confirmation' : item.rescheduled ? 'Rescheduled' : 'Confirmed', done: 'Completed', cancelled: 'Cancelled' };
+  const actions = state === 'upcoming' && AainaCore.canChange(item)
     ? `<button class="btn btn-line btn-xs" data-reschedule="${item.id}">Reschedule</button>
        <button class="btn btn-text btn-xs" data-cancel="${item.id}">Cancel</button>`
     : `<button class="btn btn-wine btn-xs" data-rebook="${item.id}">${icon('repeat')} Rebook</button>`;
@@ -669,13 +638,13 @@ function bookingsScreen() {
 
 const faqs = [
   ['How early should I come in?', 'Please arrive 10 minutes before your slot. If you are running late, message us on WhatsApp and we will try to adjust.'],
-  ['Can I reschedule or cancel?', 'Yes, free of charge up to 3 hours before your appointment, right here in Bookings.'],
+  ['Can I reschedule or cancel?', 'Yes, free of charge up to 4 hours before your appointment, right here in Bookings.'],
   ['Do you do a patch test for hair colour?', 'Yes. A free patch test is done 48 hours before any colour service, just walk in for 5 minutes.'],
   ['How do I pay?', 'Cash, UPI or card at the studio after your service. Online payment in this app is a demo.']
 ];
 
 function referCode() {
-  return 'AAINA-' + (firstName(profile.name) || 'FRIEND').toUpperCase() + '200';
+  return 'AAINA-' + (firstName(profile.name) || 'FRIEND').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 16) + '200';
 }
 
 function profileScreen() {
@@ -686,9 +655,9 @@ function profileScreen() {
 
   return `
     <header class="profile-top">
-      <span class="avatar">${initials(profile.name)}</span>
+      <span class="avatar">${esc(initials(profile.name))}</span>
       <div>
-        <h1>${profile.name}</h1>
+        <h1>${esc(profile.name)}</h1>
         <p>${prettyPhone(profile.phone)}</p>
       </div>
       <button class="round-btn" data-edit-profile aria-label="Edit details">${icon('edit')}</button>
@@ -703,7 +672,7 @@ function profileScreen() {
     <section class="group">
       <div class="group-head"><h4>My details</h4><button class="link" data-edit-profile>Edit</button></div>
       <div class="rows">
-        <div class="row"><span>Name</span><b>${profile.name}</b></div>
+        <div class="row"><span>Name</span><b>${esc(profile.name)}</b></div>
         <div class="row"><span>Mobile</span><b>${prettyPhone(profile.phone)}</b></div>
         <div class="row"><span>Email</span><b>${profile.email || 'Add email'}</b></div>
         <div class="row"><span>Birthday</span><b>${profile.birthday ? fromKey(profile.birthday).toLocaleDateString('en-IN', { day: 'numeric', month: 'long' }) : 'Add for a birthday treat'}</b></div>
@@ -757,7 +726,7 @@ function profileScreen() {
     </section>
 
     <button class="logout" data-logout>${icon('logout')} Log out</button>
-    <button class="reset" data-reset>Reset demo data</button>
+    <button class="reset" data-reset ${AainaAPI.live ? 'hidden' : ''}>Reset demo data</button>
     <p class="version">Aaina app · demo v1.0</p>`;
 }
 
@@ -773,7 +742,7 @@ function notificationsScreen() {
       ${list.map((note, i) => `
         <button class="note ${i < 2 && freshNotes ? 'unread' : ''}" data-note="${i}">
           <span class="note-ic">${icon(note.icon)}</span>
-          <span class="note-text"><b>${note.title}</b><span>${note.text}</span><small>${note.when}</small></span>
+          <span class="note-text"><b>${esc(note.title)}</b><span>${esc(note.text)}</span><small>${note.when}</small></span>
         </button>`).join('')}
     </div>`;
 }
@@ -807,7 +776,8 @@ function startBooking(ids, options = {}) {
     pay: 'studio',
     addCat: cats[0] || 'hair',
     errors: {},
-    from: screen
+    from: screen,
+    requestKey: AainaAPI.uuid()
   };
   if (flow.services.length === 0) flow.step = 'services';
   go('book');
@@ -877,12 +847,12 @@ function flowBody() {
     return `
       <div class="form">
         <label class="field ${err.name ? 'invalid' : ''}"><span>Full name</span>
-          <input data-field="name" value="${flow.name.replace(/"/g, '&quot;')}" autocomplete="name"><em>Please enter your name.</em></label>
+          <input data-field="name" value="${esc(flow.name)}" autocomplete="name"><em>Please enter your name.</em></label>
         <label class="field ${err.phone ? 'invalid' : ''}"><span>Mobile number</span>
-          <div class="phone-input"><i>+91</i><input data-field="phone" inputmode="numeric" maxlength="11" value="${flow.phone}" autocomplete="tel-national"></div>
+          <div class="phone-input"><i>+91</i><input data-field="phone" inputmode="numeric" maxlength="11" value="${esc(flow.phone)}" autocomplete="tel-national"></div>
           <em>Enter a valid 10-digit mobile number.</em></label>
         <label class="field"><span>Anything we should know? <small>(optional)</small></span>
-          <textarea data-field="notes" rows="3" placeholder="Allergies, a reference look, hair length…">${flow.notes}</textarea></label>
+          <textarea data-field="notes" rows="3" placeholder="Allergies, a reference look, hair length…">${esc(flow.notes)}</textarea></label>
       </div>
       <div class="when-card">
         ${icon('calendar')}
@@ -892,11 +862,7 @@ function flowBody() {
   }
 
   if (flow.step === 'payment') {
-    const methods = [
-      ['studio', 'store', 'Pay at the studio', 'Cash, UPI or card after your visit'],
-      ['upi', 'upi', 'UPI', 'GPay, PhonePe, Paytm'],
-      ['card', 'card', 'Debit or credit card', 'Visa, Mastercard, RuPay']
-    ];
+    const methods = [['studio', 'store', 'Pay at the studio', 'Cash, UPI or card after your visit']];
     return `
       <div class="bill">
         ${sum.items.map(item => `<div><span>${item.name}</span><span>${money(priceOf(item))}</span></div>`).join('')}
@@ -906,7 +872,7 @@ function flowBody() {
       </div>
       <div class="when-card">
         ${icon('calendar')}
-        <div><b>${longDate(flow.date)}, ${timeLabel(flow.time)}</b><small>${flow.artist === 'any' ? 'Any available artist' : findArtist(flow.artist).name} · ${flow.name}</small></div>
+        <div><b>${longDate(flow.date)}, ${timeLabel(flow.time)}</b><small>${flow.artist === 'any' ? 'Any available artist' : findArtist(flow.artist).name} · ${esc(flow.name)}</small></div>
         <button class="link" data-flow-step="time">Change</button>
       </div>
       <h4 class="sub-title">Payment</h4>
@@ -916,7 +882,7 @@ function flowBody() {
           <span><b>${title}</b><small>${text}</small></span>
           <span class="radio"></span>
         </button>`).join('')}</div>
-      <p class="demo-line">${icon('sparkle')} Demo app. No payment is taken and no OTP is sent.</p>`;
+      <p class="demo-line">${icon('sparkle')} ${AainaAPI.live ? 'Your request will be saved for studio confirmation. Pay after your visit.' : 'Demo app. No payment is taken and no appointment is made.'}</p>`;
   }
   return '';
 }
@@ -924,12 +890,12 @@ function flowBody() {
 function doneScreen() {
   const item = flow.done;
   const artist = findArtist(item.stylist);
-  const payText = { studio: 'Pay at the studio', upi: 'Paid by UPI (demo)', card: 'Paid by card (demo)' };
+  const payText = { studio: 'Pay at the studio' };
   return `
     <div class="done">
       <div class="done-badge"><svg class="done-mandala" aria-hidden="true"><use href="#mandala"/></svg>${icon('tick')}</div>
-      <h1>You are booked,<br><em>${firstName(item.name)}</em></h1>
-      <p>We have sent the details to <span class="nowrap">${prettyPhone(item.phone)}</span> on WhatsApp.</p>
+      <h1>${item.status === 'pending' ? 'Request saved' : AainaAPI.live ? 'Appointment confirmed' : 'Demo booking ready'},<br><em>${esc(firstName(item.name))}</em></h1>
+      <p>${AainaAPI.live ? 'Your appointment is saved to your account. The studio confirms pending requests; notification delivery is queued separately.' : 'Nothing was booked or sent. You can explore this sample appointment.'}</p>
       <div class="ticket">
         <div class="ticket-id"><span>Booking ID</span><b>${item.id}</b></div>
         <div class="ticket-rows">
@@ -968,7 +934,8 @@ function bookScreen() {
     </footer>`;
 }
 
-function flowNext() {
+async function flowNext() {
+  if (!stepReady() || busy.hidden === false) return;
   if (!stepReady()) return;
 
   if (flow.step === 'details') {
@@ -981,13 +948,11 @@ function flowNext() {
   }
 
   if (flow.step === 'payment') {
-    busy.querySelector('p').textContent = flow.pay === 'studio' ? 'Confirming your booking…' : 'Processing demo payment…';
+    busy.querySelector('p').textContent = AainaAPI.live ? 'Saving your appointment request…' : 'Preparing demo confirmation…';
     busy.hidden = false;
-    setTimeout(() => {
-      confirmBooking();
-      busy.hidden = true;
-      go('book');
-    }, 1300);
+    try { await confirmBooking(); go('book'); }
+    catch (error) { showToast(error.message); AainaAPI.clearSchedule(); }
+    finally { busy.hidden = true; }
     return;
   }
 
@@ -1005,42 +970,28 @@ function flowBack() {
   go('book');
 }
 
-function confirmBooking() {
+async function confirmBooking() {
   const sum = bill(flow.services, flow.combo);
-  const item = {
-    id: newBookingId(),
-    name: flow.name.trim(),
-    phone: flow.phone,
-    notes: flow.notes.trim(),
-    services: [...flow.services],
-    combo: sum.combo ? sum.combo.id : null,
-    stylist: flow.artist,
-    date: flow.date,
-    time: flow.time,
-    mins: sum.mins,
-    total: sum.total,
-    discount: sum.comboOff + sum.reward,
-    status: 'confirmed',
-    rescheduled: false,
-    pay: flow.pay
-  };
-  bookings.push(item);
-  saveBookings();
-  save(keys.last, item.id);
-
-  cart = { services: [], combo: null };
-  saveCart();
-
-  profile.notesSeen = false;
-  saveProfile();
-
-  flow.done = item;
-  flow.step = 'done';
+  let item;
+  if (AainaAPI.live) {
+    const user = await AainaAPI.ensureUser({ name: flow.name, phone: flow.phone });
+    profile = { ...profile, ...user, loggedIn: true };
+    item = await AainaAPI.createBooking({ services: flow.services, combo: flow.combo, stylist: flow.artist, date: flow.date, time: flow.time, notes: flow.notes }, flow.requestKey);
+  } else {
+    const assignments = AainaCore.allocation({ date: flow.date, time: flow.time, services: flow.services, stylist: flow.artist, catalog: serviceList, artists: stylistList, bookings });
+    item = { id: newBookingId(), name: flow.name.trim(), phone: flow.phone, notes: flow.notes.trim(), services: [...flow.services], combo: sum.combo?.id || null, lineItems: sum.lineItems,
+      stylist: flow.artist, date: flow.date, time: flow.time, assignments, mins: sum.mins, total: sum.total, discount: sum.discount, rewardCycle: sum.reward ? Math.floor(visits() / 6) : null, status: 'confirmed', rescheduled: false, pay: 'studio' };
+  }
+  bookings.push(item); saveBookings();
+  if (!AainaAPI.live) save(keys.last, item.id);
+  cart = { services: [], combo: null }; saveCart();
+  AainaAPI.clearSchedule(); flow.done = item; flow.step = 'done';
 }
 
 /* ---------- login (demo) ---------- */
 
 function loginScreen() {
+  if (AainaAPI.live) return '<div class="live-welcome"><span class="eyebrow">AAINA BEAUTY STUDIO</span><h1>Your time.<br><em>Your little ritual.</em></h1><p>Sign in to keep your appointments, favourite services and studio rewards together.</p><button class="btn btn-wine wide" data-live-login>Sign in with your phone</button><button class="btn btn-line wide" data-go="services">Explore services</button><a href="../index.html">Visit the studio website ↗</a></div>';
   return `
     <div class="login">
       <div class="login-art">
@@ -1054,9 +1005,9 @@ function loginScreen() {
         <p>Log in to book, reschedule and collect reward stamps.</p>
         <div class="form">
           <label class="field" id="loginNameField"><span>Your name</span>
-            <input id="loginName" placeholder="Ananya Sharma" value="${loginInfo.name}" autocomplete="name"><em>Please enter your name.</em></label>
+            <input id="loginName" placeholder="Ananya Sharma" value="${esc(loginInfo.name)}" autocomplete="name"><em>Please enter your name.</em></label>
           <label class="field" id="loginPhoneField"><span>Mobile number</span>
-            <div class="phone-input"><i>+91</i><input id="loginPhone" inputmode="numeric" maxlength="11" placeholder="98110 24680" value="${loginInfo.phone}" autocomplete="tel-national"></div>
+            <div class="phone-input"><i>+91</i><input id="loginPhone" inputmode="numeric" maxlength="11" placeholder="98110 24680" value="${esc(loginInfo.phone)}" autocomplete="tel-national"></div>
             <em>Enter a valid 10-digit mobile number.</em></label>
         </div>
         <button class="btn btn-wine wide" data-send-otp>Send OTP</button>
@@ -1116,6 +1067,7 @@ function openDetails(id) {
 
 function openReschedule(id) {
   const item = bookings.find(booking => booking.id === id);
+  if (!AainaCore.canChange(item)) { showToast('Appointments can be changed until 4 hours before their start.'); return; }
   const length = bill(item.services).mins;
   resched = resched && resched.id === id ? resched : { id, artist: item.stylist, date: item.date, time: null, length };
   if (!slotsFor(resched.date, resched.artist, length).some(slot => !slot.taken)) resched.date = firstFreeDate(item.stylist, length);
@@ -1136,7 +1088,7 @@ function openCancel(id) {
   openSheet(`
     <div class="confirm">
       <h2>Cancel this visit?</h2>
-      <p class="lead">${namesOf(item.services)} on ${dayLabel(item.date)} at ${timeLabel(item.time)}. Free cancellation up to 3 hours before.</p>
+      <p class="lead">${namesOf(item.services)} on ${dayLabel(item.date)} at ${timeLabel(item.time)}. Free cancellation up to 4 hours before.</p>
       <button class="btn btn-wine wide" data-close-sheet>Keep my appointment</button>
       <button class="btn btn-text wide danger" data-confirm-cancel="${id}">Yes, cancel it</button>
     </div>`);
@@ -1156,10 +1108,10 @@ function openEditProfile() {
   openSheet(`
     <form class="form edit-form" id="editForm" novalidate>
       <h2>My details</h2>
-      <label class="field"><span>Full name</span><input name="name" value="${profile.name.replace(/"/g, '&quot;')}"><em>Please enter your name.</em></label>
-      <label class="field"><span>Mobile number</span><div class="phone-input"><i>+91</i><input name="phone" inputmode="numeric" maxlength="11" value="${profile.phone}"></div><em>Enter a valid 10-digit mobile number.</em></label>
-      <label class="field"><span>Email</span><input name="email" type="email" value="${profile.email}"></label>
-      <label class="field"><span>Birthday</span><input name="birthday" type="date" value="${profile.birthday}"></label>
+      <label class="field"><span>Full name</span><input name="name" value="${esc(profile.name)}"><em>Please enter your name.</em></label>
+      <label class="field"><span>Mobile number</span><div class="phone-input"><i>+91</i><input name="phone" inputmode="numeric" maxlength="11" value="${esc(profile.phone)}" ${AainaAPI.live ? 'readonly aria-label="Verified phone number"' : ''}></div><em>Enter a valid 10-digit mobile number.</em></label>
+      <label class="field"><span>Email</span><input name="email" type="email" value="${esc(profile.email)}"></label>
+      <label class="field"><span>Birthday</span><input name="birthday" type="date" value="${esc(profile.birthday)}"></label>
       <button class="btn btn-wine wide" type="submit">Save details</button>
     </form>`);
 }
@@ -1224,17 +1176,20 @@ function finishLogin() {
   if (phoneOk(loginInfo.phone)) profile.phone = loginInfo.phone;
   saveProfile();
   go('home');
-  showToast(`Welcome, ${firstName(profile.name)}!`);
+  showToast(`Welcome, ${esc(firstName(profile.name))}!`);
 }
 
 /* ---------- events ---------- */
 
-phone.addEventListener('click', event => {
+phone.addEventListener('click', async event => {
   const target = event.target.closest('button, a, [data-note]');
   if (!target || target.disabled) return;
   const data = target.dataset;
 
-  if (data.go) {
+  if (data.liveLogin !== undefined) {
+    try { await AainaAPI.ensureUser(); await syncLive(); } catch (error) { showToast(error.message); }
+  }
+  else if (data.go) {
     if (data.go === 'notifications') {
       freshNotes = !profile.notesSeen;
       profile.notesSeen = true;
@@ -1274,21 +1229,24 @@ phone.addEventListener('click', event => {
   }
   else if (data.confirmResched !== undefined) {
     const item = bookings.find(booking => booking.id === resched.id);
-    item.date = resched.date;
-    item.time = resched.time;
-    item.rescheduled = true;
-    saveBookings();
-    closeSheet();
-    render();
-    showToast(`Moved to ${dayLabel(item.date)}, ${timeLabel(item.time)}.`);
+    try {
+      if (!AainaCore.canChange(item)) throw Error('Appointments can be changed until 4 hours before their start.');
+      if (AainaAPI.live) Object.assign(item, await AainaAPI.changeBooking(item.id, 'reschedule', { date: resched.date, time: resched.time }));
+      else {
+        const assignments = AainaCore.allocation({ date: resched.date, time: resched.time, services: item.services, stylist: item.stylist, catalog: serviceList, artists: stylistList, bookings, excludeId: item.id });
+        Object.assign(item, { date: resched.date, time: resched.time, assignments, rescheduled: true });
+      }
+      saveBookings(); AainaAPI.clearSchedule(); closeSheet(); render(); showToast('Appointment rescheduled.');
+    } catch (error) { showToast(error.message); }
   }
   else if (data.confirmCancel) {
     const item = bookings.find(booking => booking.id === data.confirmCancel);
-    item.status = 'cancelled';
-    saveBookings();
-    closeSheet();
-    render();
-    showToast(`${item.id} cancelled.`);
+    try {
+      if (!AainaCore.canChange(item)) throw Error('Appointments can be changed until 4 hours before their start.');
+      if (AainaAPI.live) Object.assign(item, await AainaAPI.changeBooking(item.id, 'cancel'));
+      else item.status = 'cancelled';
+      saveBookings(); AainaAPI.clearSchedule(); closeSheet(); render(); showToast('Appointment cancelled.');
+    } catch (error) { showToast(error.message); }
   }
 
   // booking flow
@@ -1310,7 +1268,7 @@ phone.addEventListener('click', event => {
   }
   else if (data.artist) { flow.artist = data.artist; flow.time = null; render(); }
   else if (data.pay) { flow.pay = data.pay; render(); }
-  else if (data.calendar !== undefined) showToast('Added to your calendar (demo).');
+  else if (data.calendar !== undefined) { AainaAPI.calendar(flow.done); showToast('Calendar file downloaded.'); }
 
   // notifications
   else if (data.note) {
@@ -1332,6 +1290,7 @@ phone.addEventListener('click', event => {
     showToast(`Code ${data.copy} copied.`);
   }
   else if (data.logout !== undefined) {
+    if (AainaAPI.live) { try { await AainaAPI.logout(); } catch (error) { showToast(error.message); return; } }
     profile.loggedIn = false;
     saveProfile();
     loginInfo = { name: '', phone: '' };
@@ -1339,6 +1298,7 @@ phone.addEventListener('click', event => {
   }
   else if (data.reset !== undefined) openReset();
   else if (data.confirmReset !== undefined) {
+    if (AainaAPI.live) { showToast('Demo reset is unavailable for live accounts.'); return; }
     Object.values(keys).forEach(key => localStorage.removeItem(key));
     loadState();
     loginInfo = { name: '', phone: '' };
@@ -1394,29 +1354,25 @@ phone.addEventListener('keydown', event => {
   }
 });
 
-phone.addEventListener('change', event => {
+phone.addEventListener('change', async event => {
   const pref = event.target.dataset.pref;
   if (!pref) return;
   profile[pref] = event.target.type === 'checkbox' ? event.target.checked : event.target.value;
-  saveProfile();
-  showToast('Preferences saved.');
+  try { await saveProfile(); showToast('Preferences saved.'); } catch (error) { showToast(error.message); }
 });
 
-phone.addEventListener('submit', event => {
+phone.addEventListener('submit', async event => {
   if (event.target.id !== 'editForm') return;
   event.preventDefault();
   const form = event.target;
   const name = form.name.value.trim();
-  const digits = cleanPhone(form.phone.value);
+  const digits = AainaAPI.live ? profile.phone : cleanPhone(form.phone.value);
   form.name.closest('.field').classList.toggle('invalid', name.length < 2);
   form.phone.closest('.field').classList.toggle('invalid', !phoneOk(digits));
   if (name.length < 2 || !phoneOk(digits)) return;
 
   Object.assign(profile, { name, phone: digits, email: form.email.value.trim(), birthday: form.birthday.value });
-  saveProfile();
-  closeSheet();
-  render();
-  showToast('Details saved.');
+  try { await saveProfile(); closeSheet(); render(); showToast('Details saved.'); } catch (error) { showToast(error.message); }
 });
 
 // keep in sync when the website changes the cart or saved list in another tab
@@ -1457,3 +1413,13 @@ if (!profile.loggedIn) screen = 'login';
 else if (tabs.includes(wanted) || wanted === 'notifications') screen = wanted;
 else screen = 'home';
 go(screen);
+async function syncLive() {
+  await AainaAPI.ready;
+  if (!AainaAPI.live) return;
+  if (AainaAPI.user) bookings = await AainaAPI.bookings(); else bookings = [];
+  loadState();
+  go(profile.loggedIn ? (tabs.includes(screen) ? screen : 'home') : 'login');
+}
+if (AainaAPI.live) AainaAPI.ready.then(() => syncLive()).catch(error => showToast(error.message));
+window.addEventListener('aaina-session', () => syncLive().catch(error => showToast(error.message)));
+window.addEventListener('popstate', () => { const name = location.hash.slice(1); if (screens[name] && (name !== 'book' || flow)) { screen = name; closeSheet(); render(); } });

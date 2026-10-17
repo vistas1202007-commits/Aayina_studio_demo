@@ -103,3 +103,7 @@ const comboList = [
   { id: 'glow-up', name: 'Quick Glow Up', blurb: 'The essentials before an event this weekend.', ids: ['face-threading', 'cleanup', 'underarms-wax'], percent: 10 },
   { id: 'festive-hands', name: 'Festive Hands', blurb: 'Hands and feet ready for the festive season.', ids: ['manicure', 'pedicure', 'party-mehendi'], percent: 15 }
 ];
+
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = { serviceCategories, serviceList, stylistList, comboList };
+}
